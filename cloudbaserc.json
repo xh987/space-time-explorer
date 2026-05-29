@@ -1,0 +1,21 @@
+{
+  "version": "2.0",
+  "envId": "space-time-explorer-d2bp1cbc071c",
+  "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
+  "functionRoot": "./functions",
+  "functions": [],
+  "framework": {
+    "name": "vue",
+    "plugins": {
+      "client": {
+        "use": "@cloudbase/framework-plugin-container",
+        "inputs": {
+          "buildCommand": "npm install && npm run build",
+          "outputPath": "./dist",
+          "cloudPath": "/space-time-explorer",
+          "containerPort": 80
+        }
+      }
+    }
+  }
+}
