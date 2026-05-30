@@ -4,6 +4,8 @@ import Game from '../views/Game.vue'
 import Result from '../views/Result.vue'
 import Profile from '../views/Profile.vue'
 import Report from '../views/Report.vue'
+import ChapterMap from '../views/ChapterMap.vue'
+import CardCollection from '../views/CardCollection.vue'
 
 const routes = [
   {
@@ -30,11 +32,31 @@ const routes = [
     path: '/report',
     name: 'Report',
     component: Report
+  },
+  {
+    path: '/chapter-map',
+    name: 'ChapterMap',
+    component: ChapterMap
+  },
+  {
+    path: '/card-collection',
+    name: 'CardCollection',
+    component: CardCollection
+  },
+  {
+    path: '/timeline',
+    name: 'Timeline',
+    component: () => import('../views/Timeline.vue')
+  },
+  {
+    path: '/timeline/:eventId',
+    name: 'EventDetail',
+    component: () => import('../views/EventDetail.vue')
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/space1/'),
   routes
 })
 

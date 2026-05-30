@@ -83,6 +83,56 @@
         </div>
       </div>
 
+      <!-- 正确率趋势 -->
+      <div class="chart-card">
+        <div class="chart-title">📊 正确率趋势</div>
+        <div class="accuracy-trend">
+          <div class="trend-container">
+            <div class="trend-graph">
+              <div
+                v-for="(item, index) in accuracyTrend"
+                :key="index"
+                class="trend-point"
+                :style="{ left: getTrendX(index) + '%', bottom: item.accuracy + '%' }"
+              >
+                <div class="trend-dot" :class="{ low: item.accuracy < 60, mid: item.accuracy >= 60 && item.accuracy < 80 }"></div>
+                <div class="trend-label">{{ item.accuracy }}%</div>
+              </div>
+              <!-- 参考线 -->
+              <div class="trend-line" style="bottom: 90%"></div>
+              <div class="trend-line trend-line-70" style="bottom: 70%"></div>
+            </div>
+            <div class="trend-legend">
+              <span class="legend-item"><span class="legend-line" style="background: #e74c3c"></span>90%目标线</span>
+              <span class="legend-item"><span class="legend-line" style="background: #f39c12"></span>70%及格线</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 闯关进度 -->
+      <div class="progress-card">
+        <div class="chart-title">🗺️ 闯关进度</div>
+        <div class="level-progress-stats">
+          <div class="lp-stat">
+            <div class="lp-value">{{ levelStats.completed }}</div>
+            <div class="lp-label">已通关</div>
+          </div>
+          <div class="lp-stat">
+            <div class="lp-value">{{ levelStats.totalStars }}</div>
+            <div class="lp-label">总星星</div>
+          </div>
+          <div class="lp-stat">
+            <div class="lp-value">{{ levelStats.threeStars }}</div>
+            <div class="lp-label">三星关卡</div>
+          </div>
+        </div>
+        <div class="level-progress-bar">
+          <div class="lp-bar-fill" :style="{ width: levelStats.percent + '%' }"></div>
+        </div>
+        <div class="lp-bar-label">总进度 {{ levelStats.percent }}%</div>
+      </div>
+
       <!-- 薄弱章节 -->
       <div class="weak-card" v-if="reportData.weakChapters.length > 0">
         <div class="card-title">⚠️ 需要加强的章节</div>
@@ -198,6 +248,43 @@ const getBarHeight = (value, max) => {
   const height = (value / max) * 100
   return Math.max(height, 4) + '%' // 最小高度4%
 }
+
+// 正确率趋势
+const accuracyTrend = computed(() => {
+  const answers = store.answers || []
+  if (answers.length === 0) return []
+
+  // 按每10题分组计算正确率
+  const groups = []
+  const groupSize = 10
+  for (let i = 0; i < answers.length; i += groupSize) {
+    const group = answers.slice(i, i + groupSize)
+    const correct = group.filter(a => a.isCorrect).length
+    const accuracy = Math.round((correct / group.length) * 100)
+    groups.push({
+      label: `第${groups.length + 1}组`,
+      accuracy
+    })
+  }
+  return groups
+})
+
+const getTrendX = (index) => {
+  if (accuracyTrend.value.length <= 1) return 50
+  return (index / (accuracyTrend.value.length - 1)) * 90 + 5
+}
+
+const levelStats = computed(() => {
+  const progress = store.levelProgress || {}
+  const entries = Object.values(progress)
+  const completed = entries.filter(p => p.completed).length
+  const totalStars = entries.reduce((sum, p) => sum + (p.stars || 0), 0)
+  const threeStars = entries.filter(p => p.stars >= 3).length
+  const total = 60 // 20章 × 3关
+  const percent = Math.round((completed / total) * 100)
+
+  return { completed, totalStars, threeStars, percent }
+})
 
 // 开始章节练习
 const startChapter = (chapter) => {
@@ -560,5 +647,123 @@ const goBack = () => {
 .advice-item .van-icon {
   flex-shrink: 0;
   margin-top: 2px;
+}
+
+/* 正确率趋势 */
+.trend-container {
+  padding: 16px 0;
+}
+
+.trend-graph {
+  position: relative;
+  height: 200px;
+  border-left: 2px solid #ddd;
+  border-bottom: 2px solid #ddd;
+  margin: 0 20px;
+}
+
+.trend-point {
+  position: absolute;
+  transform: translate(-50%, 50%);
+  text-align: center;
+}
+
+.trend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #667eea;
+  margin: 0 auto 4px;
+}
+
+.trend-dot.low {
+  background: #e74c3c;
+}
+
+.trend-dot.mid {
+  background: #f39c12;
+}
+
+.trend-label {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.trend-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed rgba(231, 76, 60, 0.3);
+}
+
+.trend-line-70 {
+  border-top-color: rgba(243, 156, 18, 0.3);
+}
+
+.trend-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 12px;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* 闯关进度 */
+.progress-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.level-progress-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 16px;
+}
+
+.lp-stat {
+  text-align: center;
+}
+
+.lp-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.lp-label {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.level-progress-bar {
+  height: 12px;
+  background: #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.lp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.lp-bar-label {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
 }
 </style>

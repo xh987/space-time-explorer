@@ -1,5 +1,11 @@
 <template>
-  <div class="result">
+  <div class="result-page">
+    <!-- 庆祝动画层 -->
+    <div v-if="showCelebration" class="celebration-layer">
+      <canvas ref="confettiCanvas" class="confetti-canvas"></canvas>
+      <div class="star-burst" v-for="n in 5" :key="n" :class="'star-' + n">⭐</div>
+    </div>
+
     <!-- 顶部导航 -->
     <van-nav-bar
       title="答题结果"
@@ -100,6 +106,43 @@
         </div>
       </div>
 
+      <!-- 关卡结算 -->
+      <div v-if="route.query.mode === 'level'" class="level-result-section">
+        <div class="level-result-title">关卡结算</div>
+        <div class="level-result-stars">
+          <span v-for="n in 3" :key="n" class="result-star" :class="{ active: levelStars >= n }">&#11088;</span>
+        </div>
+        <div class="level-result-info">
+          <span>关卡: {{ route.query.levelId }}</span>
+          <span>正确率: {{ accuracy }}%</span>
+        </div>
+        <div class="level-result-message">
+          {{ levelResultMessage }}
+        </div>
+      </div>
+
+      <!-- 知识卡片 -->
+      <div v-if="route.query.mode === 'level' && knowledgeCard" class="knowledge-card-section">
+        <div class="knowledge-card">
+          <div class="knowledge-header">
+            <span class="knowledge-icon">📜</span>
+            <span class="knowledge-title">{{ knowledgeCard.title }}</span>
+          </div>
+          <div class="knowledge-period">{{ knowledgeCard.period }}</div>
+          <div class="knowledge-points">
+            <div class="point-title">📌 核心知识点</div>
+            <div v-for="(point, index) in knowledgeCard.keyPoints" :key="index" class="point-item">
+              <span class="point-num">{{ index + 1 }}.</span>
+              <span>{{ point }}</span>
+            </div>
+          </div>
+          <div class="knowledge-summary">
+            <div class="summary-title">💡 知识总结</div>
+            <p>{{ knowledgeCard.summary }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 操作按钮 -->
       <div class="action-buttons">
         <van-button
@@ -109,15 +152,15 @@
           color="linear-gradient(to right, #667eea, #764ba2)"
           @click="playAgain"
         >
-          再玩一次
+          {{ route.query.mode === 'level' ? '继续闯关' : '再玩一次' }}
         </van-button>
         <van-button
+          v-if="route.query.mode !== 'level' && store.wrongCount > 0"
           type="default"
           block
           round
           style="margin-top: 12px;"
           @click="reviewWrong"
-          v-if="store.wrongCount > 0"
         >
           错题重练
         </van-button>
@@ -136,12 +179,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useGameStore } from '../stores'
 import { typeNames } from '../utils/questionLoader'
 import { checkAchievements, calculateStats, rarityConfig, achievements } from '../utils/achievements'
 import { playAchievement } from '../utils/audio'
+import { getKnowledgeCard } from '../utils/knowledgeCards'
 
 const router = useRouter()
 const route = useRoute()
@@ -153,6 +197,22 @@ const showReview = ref(true)
 // 新解锁的成就
 const newAchievements = ref([])
 
+// 庆祝动画
+const showCelebration = ref(false)
+const confettiCanvas = ref(null)
+let confettiAnimation = null
+
+// 总题数
+const totalCount = computed(() => {
+  return store.correctCount + store.wrongCount
+})
+
+// 知识卡片
+const knowledgeCard = computed(() => {
+  if (route.query.mode !== 'level' || !route.query.chapter) return null
+  return getKnowledgeCard(route.query.chapter)
+})
+
 // 答题记录（从store获取）
 const answerRecords = computed(() => {
   return store.answers || []
@@ -163,6 +223,27 @@ const accuracy = computed(() => {
   const total = store.correctCount + store.wrongCount
   if (total === 0) return 0
   return Math.round((store.correctCount / total) * 100)
+})
+
+// 关卡星星数
+const levelStars = computed(() => {
+  if (route.query.mode !== 'level') return 0
+  const total = store.correctCount + store.wrongCount
+  if (total === 0) return 0
+  const acc = store.correctCount / total
+  if (acc >= 0.9) return 3
+  if (acc >= 0.7) return 2
+  if (acc >= 0.5) return 1
+  return 0
+})
+
+// 关卡结算消息
+const levelResultMessage = computed(() => {
+  const stars = levelStars.value
+  if (stars === 3) return '🎉 完美通关！太厉害了！'
+  if (stars === 2) return '👍 表现不错！继续加油！'
+  if (stars === 1) return '💪 勉强过关，再练练吧！'
+  return '😢 没有通过，再试一次！'
 })
 
 // 计算获得的经验
@@ -218,7 +299,92 @@ onMounted(() => {
 
   // 检查成就
   checkNewAchievements()
+
+  // 三星通关或高分触发庆祝
+  if (route.query.mode === 'level') {
+    const progress = store.levelProgress[route.query.levelId]
+    if (progress && progress.stars === 3) {
+      showCelebration.value = true
+      startConfetti()
+    }
+  }
+  // 90%以上正确率也庆祝
+  const accuracy = totalCount.value > 0 ? Math.round((store.correctCount / totalCount.value) * 100) : 0
+  if (accuracy >= 90) {
+    showCelebration.value = true
+    startConfetti()
+  }
+
+  // 播放胜利音效
+  if (showCelebration.value) {
+    playAchievement()
+  }
 })
+
+onUnmounted(() => {
+  if (confettiAnimation) {
+    cancelAnimationFrame(confettiAnimation)
+  }
+})
+
+// 彩带动画
+const startConfetti = () => {
+  if (!confettiCanvas.value) return
+  const canvas = confettiCanvas.value
+  const ctx = canvas.getContext('2d')
+  canvas.width = window.innerWidth
+  canvas.height = window.innerHeight
+
+  const particles = []
+  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe']
+
+  for (let i = 0; i < 100; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: Math.random() * 8 + 4,
+      speedY: Math.random() * 3 + 2,
+      speedX: Math.random() * 2 - 1,
+      rotation: Math.random() * 360,
+      rotationSpeed: Math.random() * 4 - 2
+    })
+  }
+
+  const animate = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    particles.forEach(p => {
+      p.y += p.speedY
+      p.x += p.speedX
+      p.rotation += p.rotationSpeed
+
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate((p.rotation * Math.PI) / 180)
+      ctx.fillStyle = p.color
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
+      ctx.restore()
+
+      if (p.y > canvas.height) {
+        p.y = -20
+        p.x = Math.random() * canvas.width
+      }
+    })
+
+    confettiAnimation = requestAnimationFrame(animate)
+  }
+
+  animate()
+
+  // 5秒后停止
+  setTimeout(() => {
+    if (confettiAnimation) {
+      cancelAnimationFrame(confettiAnimation)
+      showCelebration.value = false
+    }
+  }, 5000)
+}
 
 // 更新游戏统计数据
 const updateGameStats = () => {
@@ -310,7 +476,17 @@ const checkNewAchievements = () => {
 
 // 再玩一次
 const playAgain = () => {
+  if (route.query.mode === 'level') {
+    const completedLevelId = route.query.levelId
+    store.resetGame()
+    router.push({ path: '/chapter-map', query: { highlight: completedLevelId } })
+    return
+  }
+  // 保持原有的 unlockedOnly 参数
   const currentQuery = { ...route.query }
+  if (currentQuery.unlockedOnly !== '1' && route.query.mode !== 'wrong') {
+    currentQuery.unlockedOnly = '1'
+  }
   store.resetGame()
   router.push({ path: '/game', query: currentQuery })
 }
@@ -329,6 +505,58 @@ const goHome = () => {
 </script>
 
 <style scoped>
+.result-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding-top: 46px;
+  position: relative;
+}
+
+.celebration-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.confetti-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.star-burst {
+  position: absolute;
+  font-size: 40px;
+  animation: starBurst 1s ease-out forwards;
+}
+
+.star-1 { top: 20%; left: 20%; animation-delay: 0s; }
+.star-2 { top: 30%; right: 20%; animation-delay: 0.2s; }
+.star-3 { top: 50%; left: 10%; animation-delay: 0.4s; }
+.star-4 { top: 60%; right: 15%; animation-delay: 0.6s; }
+.star-5 { top: 40%; left: 50%; animation-delay: 0.8s; }
+
+@keyframes starBurst {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
 .result {
   min-height: 100vh;
   background: #f5f5f5;
@@ -532,6 +760,54 @@ const goHome = () => {
   margin-top: 32px;
 }
 
+/* 关卡结算 */
+.level-result-section {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.level-result-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.level-result-stars {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.result-star {
+  opacity: 0.2;
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+.result-star.active {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.level-result-info {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.level-result-message {
+  font-size: 16px;
+  color: #333;
+  font-weight: bold;
+}
+
 /* 成就解锁 */
 .achievement-section {
   background: white;
@@ -599,5 +875,89 @@ const goHome = () => {
   padding: 4px 8px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.5);
+}
+
+/* 知识卡片 */
+.knowledge-card-section {
+  margin-bottom: 16px;
+}
+
+.knowledge-card {
+  background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid #f0d86e;
+}
+
+.knowledge-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.knowledge-icon {
+  font-size: 24px;
+}
+
+.knowledge-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #856404;
+}
+
+.knowledge-period {
+  font-size: 13px;
+  color: #b8860b;
+  margin-bottom: 16px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  display: inline-block;
+}
+
+.knowledge-points {
+  margin-bottom: 16px;
+}
+
+.point-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.point-item {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+  padding-left: 4px;
+  margin-bottom: 4px;
+}
+
+.point-num {
+  color: #667eea;
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.knowledge-summary {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.summary-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.knowledge-summary p {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.8;
+  margin: 0;
 }
 </style>

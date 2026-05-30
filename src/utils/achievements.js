@@ -99,6 +99,104 @@ export const achievements = [
     icon: '🌍',
     condition: (stats) => stats.completedChapters.length >= 20,
     rarity: 'legendary'
+  },
+  // 闯关成就
+  {
+    id: 'level_first_clear',
+    name: '初出茅庐',
+    description: '首次通关一个关卡',
+    icon: '🗡️',
+    rarity: 'common',
+    condition: (stats) => Object.keys(stats.levelProgress || {}).filter(k => stats.levelProgress[k].completed).length >= 1
+  },
+  {
+    id: 'level_three_stars',
+    name: '完美通关',
+    description: '获得首个三星评价',
+    icon: '⭐',
+    rarity: 'rare',
+    condition: (stats) => Object.values(stats.levelProgress || {}).some(p => p.stars >= 3)
+  },
+  {
+    id: 'level_five_clear',
+    name: '探险家',
+    description: '通关5个关卡',
+    icon: '🗺️',
+    rarity: 'rare',
+    condition: (stats) => Object.keys(stats.levelProgress || {}).filter(k => stats.levelProgress[k].completed).length >= 5
+  },
+  {
+    id: 'level_ten_clear',
+    name: '历史学者',
+    description: '通关10个关卡',
+    icon: '📚',
+    rarity: 'epic',
+    condition: (stats) => Object.keys(stats.levelProgress || {}).filter(k => stats.levelProgress[k].completed).length >= 10
+  },
+  {
+    id: 'streak_3',
+    name: '坚持不懈',
+    description: '连续打卡3天',
+    icon: '🔥',
+    rarity: 'common',
+    condition: (stats) => (stats.streakDays || 0) >= 3
+  },
+  {
+    id: 'streak_7',
+    name: '持之以恒',
+    description: '连续打卡7天',
+    icon: '💪',
+    rarity: 'rare',
+    condition: (stats) => (stats.streakDays || 0) >= 7
+  },
+  {
+    id: 'total_100',
+    name: '勤学苦练',
+    description: '累计答题100题',
+    icon: '📝',
+    rarity: 'common',
+    condition: (stats) => (stats.totalAnswered || 0) >= 100
+  },
+  {
+    id: 'total_500',
+    name: '学海无涯',
+    description: '累计答题500题',
+    icon: '🎓',
+    rarity: 'rare',
+    condition: (stats) => (stats.totalAnswered || 0) >= 500
+  },
+  {
+    id: 'no_wrong_10',
+    name: '十全十美',
+    description: '连续答对10题',
+    icon: '🏆',
+    rarity: 'epic',
+    condition: (stats) => (stats.maxCombo || 0) >= 10
+  },
+  // 时间轴成就
+  {
+    id: 'timeline_first',
+    name: '历史探索者',
+    description: '解锁第一个历史事件',
+    icon: '📅',
+    rarity: 'common',
+    condition: (stats) => (stats.timelineUnlocked || 0) >= 1
+  },
+  {
+    id: 'timeline_half',
+    name: '历史研究员',
+    description: '解锁一半历史事件',
+    icon: '📜',
+    rarity: 'rare',
+    condition: (stats) => (stats.timelineUnlocked || 0) >= 36
+  },
+  {
+    id: 'timeline_master',
+    name: '历史通',
+    description: '解锁所有历史事件',
+    icon: '🏛️',
+    rarity: 'epic',
+    condition: (stats) => (stats.timelineUnlocked || 0) >= 73
   }
 ]
 
@@ -212,6 +310,10 @@ export function calculateStats(store) {
   // 这里简化处理，实际应该在游戏结束时记录
   const perfectRounds = store.perfectRounds || 0
 
+  // 计算时间轴解锁数量
+  const { getUnlockProgress } = require('./timelineData')
+  const timelineProgress = getUnlockProgress(store.unlockedLevels || [])
+
   return {
     totalAnswered,
     totalCorrect,
@@ -222,6 +324,8 @@ export function calculateStats(store) {
     completedChapters: store.completedChapters || [],
     wrongPracticeCorrect: store.wrongPracticeCorrect || 0,
     perfectAccuracyRounds: store.perfectAccuracyRounds || 0,
-    fastRounds: store.fastRounds || 0
+    fastRounds: store.fastRounds || 0,
+    levelProgress: store.levelProgress || {},
+    timelineUnlocked: timelineProgress.unlocked
   }
 }

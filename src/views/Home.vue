@@ -31,126 +31,61 @@
         <p>在探险中学习历史与地理</p>
       </div>
 
-      <!-- 每日挑战 -->
-      <div class="daily-challenge" v-if="!hasCheckedInToday">
-        <div class="challenge-header">
-          <div class="challenge-icon">📅</div>
-          <div class="challenge-info">
-            <div class="challenge-title">每日挑战</div>
-            <div class="challenge-desc">完成10题打卡，已连续 {{ store.streakDays }} 天</div>
-          </div>
-          <van-button type="primary" size="small" round @click="startDailyChallenge">
-            开始挑战
-          </van-button>
-        </div>
-        <div class="challenge-progress">
-          <div class="streak-days">
-            <span v-for="n in 7" :key="n" class="day-dot" :class="{ active: isDayCheckedIn(n) }">
-              {{ n }}
-            </span>
-          </div>
-          <div class="streak-reward">连续7天额外奖励100金币！</div>
-        </div>
-      </div>
-
-      <div class="daily-challenge completed" v-else>
-        <div class="challenge-header">
-          <div class="challenge-icon">✅</div>
-          <div class="challenge-info">
-            <div class="challenge-title">今日已完成</div>
-            <div class="challenge-desc">已连续打卡 {{ store.streakDays }} 天</div>
-          </div>
-          <van-button type="default" size="small" round disabled>
-            已完成
-          </van-button>
-        </div>
-        <div class="challenge-progress">
-          <div class="streak-days">
-            <span v-for="n in 7" :key="n" class="day-dot" :class="{ active: isDayCheckedIn(n) }">
-              {{ n }}
-            </span>
-          </div>
-          <div class="streak-reward">连续7天额外奖励100金币！</div>
-        </div>
-      </div>
-
-      <!-- 智能推荐 -->
-      <div class="smart-recommend" v-if="recommendations.advice">
-        <div class="recommend-header">
-          <div class="recommend-icon">🤖</div>
-          <div class="recommend-info">
-            <div class="recommend-title">智能推荐</div>
-            <div class="recommend-advice">{{ recommendations.advice }}</div>
-          </div>
-        </div>
-        <div class="recommend-actions">
-          <van-button
-            v-if="recommendations.suggestedMode === 'wrong'"
-            type="primary"
-            block
-            round
-            @click="startWrongMode"
-          >
-            开始错题重练
-          </van-button>
-          <van-button
-            v-else-if="recommendations.suggestedMode === 'chapter' && recommendations.suggestedChapters.length > 0"
-            type="primary"
-            block
-            round
-            @click="startChapter(recommendations.suggestedChapters[0])"
-          >
-            练习推荐章节
-          </van-button>
-          <van-button
-            v-else-if="recommendations.suggestedMode === 'daily'"
-            type="primary"
-            block
-            round
-            @click="startDailyChallenge"
-          >
-            开始每日挑战
-          </van-button>
-          <van-button
-            v-else
-            type="primary"
-            block
-            round
-            @click="startRandom(10)"
-          >
-            随机练习
-          </van-button>
-        </div>
-        <!-- 薄弱章节展示 -->
-        <div v-if="recommendations.weakChapters.length > 0" class="weak-chapters">
-          <div class="weak-title">📊 薄弱章节</div>
-          <div class="weak-list">
-            <div
-              v-for="ch in recommendations.weakChapters"
-              :key="ch.tag"
-              class="weak-item"
-              @click="startChapter(ch.tag)"
-            >
-              <span class="weak-name">{{ ch.name }}</span>
-              <span class="weak-accuracy" :class="{ low: ch.accuracy < 50 }">
-                {{ ch.accuracy }}%
-              </span>
+      <!-- 闯关模式入口 -->
+      <div class="adventure-mode">
+        <div class="adventure-card" @click="goToChapterMap">
+          <div class="adventure-bg"></div>
+          <div class="adventure-content">
+            <div class="adventure-icon">🗺️</div>
+            <div class="adventure-info">
+              <div class="adventure-title">时空探险</div>
+              <div class="adventure-desc">闯关模式 • {{ unlockedLevelsCount }}/{{ totalLevelsCount }}关</div>
+              <div class="adventure-progress">
+                <div class="progress-bar-mini">
+                  <div class="progress-fill-mini" :style="{ width: adventureProgress + '%' }"></div>
+                </div>
+                <span class="progress-text">{{ adventureProgress }}%</span>
+              </div>
             </div>
+            <van-icon name="arrow" class="adventure-arrow" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 每日挑战 + 智能推荐 并排 -->
+      <div class="feature-cards">
+        <!-- 每日挑战 -->
+        <div class="feature-card challenge-card" :class="{ completed: hasCheckedInToday }" @click="!hasCheckedInToday && startDailyChallenge()">
+          <div class="feature-icon">{{ hasCheckedInToday ? '✅' : '🔥' }}</div>
+          <div class="feature-title">{{ hasCheckedInToday ? '今日已打卡' : '每日挑战' }}</div>
+          <div class="feature-desc">连续 {{ store.streakDays }} 天</div>
+          <div class="feature-mini-dots">
+            <span v-for="n in 7" :key="n" class="mini-dot" :class="{ active: isDayCheckedIn(n) }"></span>
+          </div>
+        </div>
+
+        <!-- 智能推荐 -->
+        <div class="feature-card recommend-card" @click="handleRecommendClick">
+          <div class="feature-icon">🤖</div>
+          <div class="feature-title">智能推荐</div>
+          <div class="feature-desc">{{ recommendations.advice || '根据你的表现推荐' }}</div>
+          <div class="feature-hint" v-if="recommendations.weakChapters.length > 0">
+            {{ recommendations.weakChapters.length }} 个薄弱章节
           </div>
         </div>
       </div>
 
       <!-- 快速开始 -->
       <div class="quick-start">
-        <div class="section-title">快速开始</div>
+        <div class="section-title">快速开始 <span class="unlocked-hint">(已解锁 {{ unlockedQuestionCount }} 题)</span></div>
         <div class="quick-buttons">
-          <div class="quick-btn" @click="startRandom(10)">
+          <div class="quick-btn" @click="startRandom(10)" :class="{ disabled: unlockedQuestionCount < 10 }">
             <div class="quick-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
               <van-icon name="shuffle" size="24" />
             </div>
             <span>随机10题</span>
           </div>
-          <div class="quick-btn" @click="startRandom(20)">
+          <div class="quick-btn" @click="startRandom(20)" :class="{ disabled: unlockedQuestionCount < 20 }">
             <div class="quick-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
               <van-icon name="fire-o" size="24" />
             </div>
@@ -163,6 +98,9 @@
             <span>错题重练</span>
             <van-badge v-if="store.wrongQuestions.length > 0" :content="store.wrongQuestions.length" class="wrong-badge" />
           </div>
+        </div>
+        <div v-if="unlockedQuestionCount === 0" class="lock-hint">
+          🔒 请先在「时空探险」中解锁题库
         </div>
       </div>
 
@@ -177,8 +115,10 @@
                 v-for="chapter in unit.chapters"
                 :key="chapter"
                 class="chapter-card"
-                @click="startChapter(chapter)"
+                :class="{ locked: !isChapterUnlocked(chapter) }"
+                @click="handleChapterClick(chapter)"
               >
+                <div v-if="!isChapterUnlocked(chapter)" class="chapter-lock">🔒</div>
                 <div class="chapter-tag">{{ chapter }}</div>
                 <div class="chapter-name">{{ chapterNames[chapter] || chapter }}</div>
                 <div class="chapter-count">{{ getChapterCount(chapter) }}题</div>
@@ -259,6 +199,32 @@
           size="large"
           round
           block
+          @click="goToCardCollection"
+          style="margin-bottom: 12px;"
+        >
+          <template #icon>
+            <span style="font-size: 18px;">📜</span>
+          </template>
+          知识图鉴 <span class="card-count-badge">{{ collectedCardCount }}/{{ totalCardCount }}</span>
+        </van-button>
+        <van-button
+          type="default"
+          size="large"
+          round
+          block
+          @click="goToTimeline"
+          style="margin-bottom: 12px;"
+        >
+          <template #icon>
+            <span style="font-size: 18px;">📅</span>
+          </template>
+          历史时间轴 <span class="card-count-badge">{{ timelineProgress.unlocked }}/{{ timelineProgress.total }}</span>
+        </van-button>
+        <van-button
+          type="default"
+          size="large"
+          round
+          block
           @click="goToProfile"
         >
           <template #icon>
@@ -294,7 +260,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores'
-import { loadAllQuestions, getChapterList, chapterNames, unitGroups, difficultyNames } from '../utils/questionLoader'
+import { loadAllQuestions, getChapterList, chapterNames, unitGroups, difficultyNames, filterUnlockedQuestions, getUnlockedChapters } from '../utils/questionLoader'
+import { knowledgeCards } from '../utils/knowledgeCards'
+import { getUnlockProgress } from '../utils/timelineData'
 import { generateRecommendations, recommendDifficulty } from '../utils/smartAnalysis'
 import AudioSettings from '../components/AudioSettings.vue'
 
@@ -309,6 +277,9 @@ const useAdaptive = ref(true) // 默认启用自适应难度
 
 // 章节题目数量缓存
 const chapterCounts = ref({})
+
+// 全部题目缓存
+const allQuestions = ref([])
 
 // 经验值百分比
 const expPercent = computed(() => {
@@ -355,6 +326,46 @@ const recommendedDifficulty = computed(() => {
   return recommendDifficulty(store.answers)
 })
 
+// 闯关模式进度
+const totalLevelsCount = computed(() => {
+  // 20章 × 3关 = 60关
+  return 60
+})
+
+const unlockedLevelsCount = computed(() => {
+  return store.unlockedLevels.length
+})
+
+const adventureProgress = computed(() => {
+  const completed = Object.values(store.levelProgress).filter(p => p.completed).length
+  return Math.round((completed / totalLevelsCount.value) * 100)
+})
+
+// 已解锁的章节列表
+const unlockedChaptersList = computed(() => {
+  return getUnlockedChapters(store.unlockedLevels)
+})
+
+// 已解锁题目数量
+const unlockedQuestionCount = computed(() => {
+  if (!allQuestions.value || allQuestions.value.length === 0) return 0
+  return filterUnlockedQuestions(allQuestions.value, store.unlockedLevels).length
+})
+
+// 判断章节是否解锁
+const isChapterUnlocked = (chapterTag) => {
+  return unlockedChaptersList.value.includes(chapterTag)
+}
+
+// 处理章节点击
+const handleChapterClick = (chapter) => {
+  if (!isChapterUnlocked(chapter)) {
+    alert('🔒 该章节尚未解锁\n请先在「时空探险」中通关解锁！')
+    return
+  }
+  startChapter(chapter)
+}
+
 // 获取章节题目数量
 const getChapterCount = (chapter) => {
   return chapterCounts.value[chapter] || 0
@@ -374,9 +385,13 @@ function buildQuery(overrides = {}) {
   return { ...query, ...overrides }
 }
 
-// 随机挑战
+// 随机挑战（只从已解锁题目中抽取）
 const startRandom = (count) => {
-  router.push({ path: '/game', query: buildQuery({ mode: 'random', count }) })
+  if (unlockedQuestionCount.value < count) {
+    alert(`🔒 已解锁题目不足 ${count} 题\n请先在「时空探险」中解锁更多章节！`)
+    return
+  }
+  router.push({ path: '/game', query: buildQuery({ mode: 'random', count, unlockedOnly: '1' }) })
 }
 
 // 错题重练
@@ -385,9 +400,9 @@ const startWrongMode = () => {
   router.push({ path: '/game', query: { mode: 'wrong' } })
 }
 
-// 按章节练习
+// 按章节练习（只使用已解锁章节）
 const startChapter = (chapter) => {
-  router.push({ path: '/game', query: buildQuery({ chapter }) })
+  router.push({ path: '/game', query: buildQuery({ chapter, unlockedOnly: '1' }) })
 }
 
 // 去个人中心
@@ -400,16 +415,60 @@ const goToReport = () => {
   router.push('/report')
 }
 
-// 开始每日挑战
+const goToChapterMap = () => {
+  router.push('/chapter-map')
+}
+
+const goToCardCollection = () => {
+  router.push('/card-collection')
+}
+
+const goToTimeline = () => {
+  router.push('/timeline')
+}
+
+// 处理智能推荐点击
+const handleRecommendClick = () => {
+  if (recommendations.value.suggestedMode === 'wrong') {
+    startWrongMode()
+  } else if (recommendations.value.suggestedMode === 'chapter' && recommendations.value.suggestedChapters.length > 0) {
+    startChapter(recommendations.value.suggestedChapters[0])
+  } else if (recommendations.value.suggestedMode === 'daily') {
+    startDailyChallenge()
+  } else {
+    startRandom(10)
+  }
+}
+
+// 知识卡片收集数量
+const totalCardCount = computed(() => {
+  return Object.keys(knowledgeCards).length
+})
+
+const collectedCardCount = computed(() => {
+  const unlocked = getUnlockedChapters(store.unlockedLevels)
+  return unlocked.filter(ch => knowledgeCards[ch]).length
+})
+
+// 时间轴解锁进度
+const timelineProgress = computed(() => {
+  return getUnlockProgress(store.unlockedLevels)
+})
+
+// 开始每日挑战（只从已解锁题目中抽取）
 const startDailyChallenge = () => {
-  router.push({ path: '/game', query: { mode: 'daily', count: 10 } })
+  if (unlockedQuestionCount.value < 10) {
+    alert('🔒 已解锁题目不足 10 题\n请先在「时空探险」中解锁更多章节！')
+    return
+  }
+  router.push({ path: '/game', query: { mode: 'daily', count: 10, unlockedOnly: '1' } })
 }
 
 // 初始化：预加载题库统计
 onMounted(async () => {
   try {
-    const allQuestions = await loadAllQuestions()
-    const chapters = getChapterList(allQuestions)
+    allQuestions.value = await loadAllQuestions()
+    const chapters = getChapterList(allQuestions.value)
     chapters.forEach(ch => {
       chapterCounts.value[ch.tag] = ch.count
     })
@@ -534,6 +593,22 @@ onMounted(async () => {
   padding-left: 12px;
 }
 
+.unlocked-hint {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+}
+
+.lock-hint {
+  text-align: center;
+  padding: 12px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 14px;
+  margin-top: 12px;
+}
+
 /* 智能推荐 */
 .smart-recommend {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
@@ -541,6 +616,96 @@ onMounted(async () => {
   padding: 20px;
   margin-bottom: 24px;
   color: white;
+}
+
+/* 闯关模式入口 */
+.adventure-mode {
+  margin-bottom: 24px;
+}
+
+.adventure-card {
+  position: relative;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.adventure-card:active {
+  transform: scale(0.98);
+}
+
+.adventure-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="40" r="3" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="80" r="2" fill="rgba(255,255,255,0.1)"/></svg>');
+  opacity: 0.5;
+}
+
+.adventure-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.adventure-icon {
+  font-size: 48px;
+}
+
+.adventure-info {
+  flex: 1;
+  color: white;
+}
+
+.adventure-title {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.adventure-desc {
+  font-size: 14px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.adventure-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-bar-mini {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill-mini {
+  height: 100%;
+  background: white;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  font-weight: bold;
+  min-width: 35px;
+  text-align: right;
+}
+
+.adventure-arrow {
+  color: white;
+  font-size: 24px;
 }
 
 .recommend-header {
@@ -699,6 +864,86 @@ onMounted(async () => {
   opacity: 0.9;
 }
 
+/* 功能卡片并排布局 */
+.feature-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.feature-card {
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.feature-card:active {
+  transform: scale(0.96);
+}
+
+.challenge-card {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  color: white;
+}
+
+.challenge-card.completed {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+}
+
+.recommend-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.feature-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.feature-title {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.feature-desc {
+  font-size: 11px;
+  opacity: 0.9;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  min-height: 28px;
+}
+
+.feature-mini-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.mini-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.mini-dot.active {
+  background: #f39c12;
+  box-shadow: 0 0 4px rgba(243, 156, 18, 0.8);
+}
+
+.feature-hint {
+  font-size: 10px;
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
 /* 快速开始 */
 .quick-start {
   margin-bottom: 28px;
@@ -754,6 +999,12 @@ onMounted(async () => {
   right: 8px;
 }
 
+.card-count-badge {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+}
+
 /* 章节选择 */
 .chapter-section {
   margin-bottom: 28px;
@@ -785,11 +1036,27 @@ onMounted(async () => {
   border: 2px solid transparent;
 }
 
+.chapter-card.locked {
+  opacity: 0.6;
+  background: #e9ecef;
+  cursor: not-allowed;
+}
+
+.chapter-card.locked:hover {
+  border-color: transparent;
+  background: #e9ecef;
+}
+
+.chapter-lock {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
 .chapter-card:active {
   transform: scale(0.96);
 }
 
-.chapter-card:hover {
+.chapter-card:not(.locked):hover {
   border-color: #667eea;
   background: #f0f3ff;
 }

@@ -35,7 +35,15 @@ export const useGameStore = defineStore('game', {
     checkInDates: [], // 所有打卡日期记录（用于日历展示）
     wrongPracticeCorrect: 0, // 错题重练答对数
     perfectAccuracyRounds: 0, // 100%正确率回合
-    fastRounds: 0 // 快速完成回合
+    fastRounds: 0, // 快速完成回合
+    // 闯关模式数据
+    unlockedLevels: ['1-1'], // 已解锁关卡列表，格式：章节-关卡，如 '1-1', '1-2', '2-1'
+    levelProgress: {}, // 关卡进度 { '1-1': { stars: 3, completed: true, bestScore: 120, currentIndex: 0 } }
+    currentLevelId: null, // 当前进行的关卡ID
+    // 答题历史记录（最近500题）
+    answerHistory: [],
+    // 题目统计 { questionId: { count: 0, correct: 0, lastAnswered: timestamp } }
+    questionStats: {}
   }),
 
   getters: {
@@ -113,6 +121,39 @@ export const useGameStore = defineStore('game', {
         timestamp: Date.now()
       })
 
+      // 添加到答题历史
+      const historyEntry = {
+        id: Date.now() + Math.random(),
+        questionId: question.id,
+        questionContent: question.content,
+        chapter: question.tags?.[0] || 'unknown',
+        isCorrect,
+        userAnswer,
+        correctAnswer: question.answer,
+        timeSpent,
+        timestamp: Date.now()
+      }
+
+      this.answerHistory.unshift(historyEntry)
+      // 只保留最近500条
+      if (this.answerHistory.length > 500) {
+        this.answerHistory = this.answerHistory.slice(0, 500)
+      }
+
+      // 更新题目统计
+      if (!this.questionStats[question.id]) {
+        this.questionStats[question.id] = {
+          count: 0,
+          correct: 0,
+          lastAnswered: null
+        }
+      }
+      this.questionStats[question.id].count++
+      if (isCorrect) {
+        this.questionStats[question.id].correct++
+      }
+      this.questionStats[question.id].lastAnswered = Date.now()
+
       // 不要自动递增 currentQuestionIndex
     },
 
@@ -142,6 +183,73 @@ export const useGameStore = defineStore('game', {
     // 添加金币
     addCoins(amount) {
       this.user.coins += amount
+    },
+
+    // 闯关模式：解锁关卡
+    unlockLevel(levelId) {
+      if (!this.unlockedLevels.includes(levelId)) {
+        this.unlockedLevels.push(levelId)
+      }
+    },
+
+    // 闯关模式：更新关卡进度
+    updateLevelProgress(levelId, progress) {
+      const existing = this.levelProgress[levelId] || {}
+      this.levelProgress[levelId] = {
+        ...existing,
+        ...progress,
+        lastPlayed: Date.now()
+      }
+    },
+
+    // 闯关模式：完成关卡
+    completeLevel(levelId, stars, score) {
+      const existing = this.levelProgress[levelId] || {}
+      const newStars = Math.max(existing.stars || 0, stars)
+      const newBestScore = Math.max(existing.bestScore || 0, score)
+      
+      this.levelProgress[levelId] = {
+        ...existing,
+        stars: newStars,
+        completed: true,
+        bestScore: newBestScore,
+        completedAt: Date.now()
+      }
+      
+      // 自动解锁下一关
+      const [chapter, level] = levelId.split('-').map(Number)
+      
+      // 同一章的下一关
+      if (level < 3) {
+        this.unlockLevel(`${chapter}-${level + 1}`)
+      } else {
+        // 下一章的第一关
+        this.unlockLevel(`${chapter + 1}-1`)
+      }
+    },
+
+    // 闯关模式：开始关卡
+    startLevel(levelId, questions) {
+      this.currentLevelId = levelId
+      const progress = this.levelProgress[levelId]
+      const startIndex = progress?.currentIndex || 0
+      
+      this.questions = questions
+      this.currentQuestionIndex = startIndex
+      this.score = 0
+      this.correctCount = 0
+      this.wrongCount = 0
+      this.combo = 0
+      this.answers = []
+    },
+
+    // 闯关模式：保存当前进度
+    saveLevelProgress() {
+      if (this.currentLevelId) {
+        this.updateLevelProgress(this.currentLevelId, {
+          currentIndex: this.currentQuestionIndex
+        })
+      }
     }
   },
 
@@ -151,7 +259,7 @@ export const useGameStore = defineStore('game', {
       {
         key: 'space-time-explorer',
         storage: localStorage,
-        paths: ['user', 'wrongQuestions', 'achievements', 'maxCombo', 'perfectRounds', 'completedChapters', 'streakDays', 'lastCheckInDate', 'checkInDates', 'wrongPracticeCorrect', 'perfectAccuracyRounds', 'fastRounds']
+        paths: ['user', 'wrongQuestions', 'achievements', 'maxCombo', 'perfectRounds', 'completedChapters', 'streakDays', 'lastCheckInDate', 'checkInDates', 'wrongPracticeCorrect', 'perfectAccuracyRounds', 'fastRounds', 'unlockedLevels', 'levelProgress', 'answerHistory', 'questionStats']
       }
     ]
   }
@@ -182,7 +290,11 @@ function piniaPersistPlugin({ store }) {
       checkInDates: state.checkInDates,
       wrongPracticeCorrect: state.wrongPracticeCorrect,
       perfectAccuracyRounds: state.perfectAccuracyRounds,
-      fastRounds: state.fastRounds
+      fastRounds: state.fastRounds,
+      unlockedLevels: state.unlockedLevels,
+      levelProgress: state.levelProgress,
+      answerHistory: state.answerHistory,
+      questionStats: state.questionStats
     }
     localStorage.setItem('space-time-explorer', JSON.stringify(toSave))
   })

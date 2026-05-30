@@ -4,13 +4,9 @@
 
 // 背景音乐配置 - 可以替换为本地文件路径
 const BGM_CONFIG = {
-  // 使用免费的音乐 CDN，你可以替换为本地文件路径如 '/audio/bgm.mp3'
-  url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112778.mp3',
-  // 备用音源（如果上面的失效）
-  fallbackUrl: 'https://cdn.pixabay.com/download/audio/2021/11/25/audio_cb0b7c6a4c.mp3?filename=relaxing-mountains-rivers-streams-running-water-18178.mp3',
-  // 是否循环播放
+  url: 'https://cdn.pixabay.com/audio/2024/11/01/audio_3cfe5c4eb5.mp3',
+  fallbackUrl: 'https://cdn.pixabay.com/audio/2023/10/28/audio_3e8b2e8a7b.mp3',
   loop: true,
-  // 淡入时间（秒）
   fadeInDuration: 2
 }
 
@@ -261,13 +257,19 @@ class AudioManager {
     this.bgmAudio.loop = BGM_CONFIG.loop
     this.bgmAudio.volume = 0 // 从0开始，然后淡入
     
-    // 错误处理 - 尝试备用音源
+    // 错误处理 - 尝试备用音源，最终兜底用 Web Audio API 生成环境音
     this.bgmAudio.onerror = () => {
-      console.warn('主音源加载失败，尝试备用音源')
+      console.warn('音源加载失败')
       if (this.bgmSource !== BGM_CONFIG.fallbackUrl) {
+        console.warn('尝试备用音源')
         this.bgmSource = BGM_CONFIG.fallbackUrl
         this.stopBGM()
         setTimeout(() => this.playBGM(), 100)
+      } else {
+        console.warn('备用音源也失败，使用 Web Audio API 生成环境音')
+        this.isPlayingBGM = false
+        this.bgmAudio = null
+        this.generateFallbackBGM()
       }
     }
 
@@ -308,9 +310,79 @@ class AudioManager {
     }, stepDuration)
   }
 
+  // 使用 Web Audio API 生成轻柔的和弦环境音作为兜底
+  generateFallbackBGM() {
+    if (!this.bgmEnabled || this.isPlayingBGM) return
+    this.init()
+
+    this.isPlayingBGM = true
+    this._fallbackNodes = []
+
+    const masterGain = this.ctx.createGain()
+    masterGain.gain.setValueAtTime(0, this.ctx.currentTime)
+    masterGain.connect(this.ctx.destination)
+    this._fallbackNodes.push(masterGain)
+
+    // 淡入
+    const targetVol = this.bgmVolume * 0.4
+    masterGain.gain.linearRampToValueAtTime(targetVol, this.ctx.currentTime + BGM_CONFIG.fadeInDuration)
+
+    // 和弦音符频率 (C大调和弦: C4, E4, G4, C5)
+    const chordFreqs = [261.63, 329.63, 392.00, 523.25]
+
+    const playChord = () => {
+      if (!this.isPlayingBGM) return
+      const now = this.ctx.currentTime
+
+      chordFreqs.forEach((freq, i) => {
+        const osc = this.ctx.createOscillator()
+        const gain = this.ctx.createGain()
+
+        osc.type = 'sine'
+        osc.frequency.value = freq
+
+        // 每个音符错开一点时间，产生柔和的琶音效果
+        const offset = i * 0.3
+        gain.gain.setValueAtTime(0, now + offset)
+        gain.gain.linearRampToValueAtTime(targetVol * 0.3, now + offset + 0.5)
+        gain.gain.linearRampToValueAtTime(0, now + offset + 3.5)
+
+        osc.connect(gain)
+        gain.connect(masterGain)
+
+        osc.start(now + offset)
+        osc.stop(now + offset + 4)
+        this._fallbackNodes.push(osc, gain)
+      })
+
+      // 每4秒循环一次
+      this._fallbackTimer = setTimeout(playChord, 4000)
+    }
+
+    playChord()
+    this._fallbackMasterGain = masterGain
+  }
+
   // 停止背景音乐
   stopBGM() {
     this.isPlayingBGM = false
+
+    // 停止 Web Audio API 生成的环境音
+    if (this._fallbackTimer) {
+      clearTimeout(this._fallbackTimer)
+      this._fallbackTimer = null
+    }
+    if (this._fallbackNodes) {
+      this._fallbackNodes.forEach(node => {
+        try { node.stop && node.stop() } catch (e) {}
+        try { node.disconnect() } catch (e) {}
+      })
+      this._fallbackNodes = []
+    }
+    if (this._fallbackMasterGain) {
+      try { this._fallbackMasterGain.disconnect() } catch (e) {}
+      this._fallbackMasterGain = null
+    }
     
     if (this.bgmAudio) {
       // 淡出效果

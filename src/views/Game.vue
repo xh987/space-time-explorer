@@ -24,6 +24,16 @@
         </div>
       </div>
 
+      <!-- 限时倒计时 -->
+      <div v-if="route.query.mode === 'speed'" class="timer-section">
+        <div class="timer-bar" :class="{ warning: timeRemaining <= 10, danger: timeRemaining <= 5 }">
+          <div class="timer-fill" :style="{ width: (timeRemaining / timeLimit * 100) + '%' }"></div>
+        </div>
+        <div class="timer-text" :class="{ warning: timeRemaining <= 10, danger: timeRemaining <= 5 }">
+          ⏱️ {{ timeRemaining }}s
+        </div>
+      </div>
+
       <!-- 连击显示 - 增强版 -->
       <div v-if="combo > 1" class="combo-display" :class="getComboClass" ref="comboEl">
         <div class="combo-bg"></div>
@@ -92,37 +102,16 @@
             </div>
           </div>
 
-          <!-- 填空题输入 -->
-          <div v-else-if="currentQuestion.type === 'fill'" class="fill-section">
-            <van-field
-              v-model="fillAnswer"
-              placeholder="请输入答案（多个答案用空格分隔）"
-              :disabled="showResult"
-              type="textarea"
-              rows="2"
-              autosize
-            />
-            <van-button
-              type="primary"
-              block
-              round
-              :disabled="!fillAnswer.trim() || showResult"
-              @click="submitFillAnswer"
-            >
-              提交答案
-            </van-button>
-          </div>
-
           <!-- 判断题 -->
           <div v-else-if="currentQuestion.type === 'judge'" class="judge-section">
             <div
               class="judge-option"
               :class="{
-                'selected': selectedJudge === true && !showResult,
+                'selected': selectedOption === 0 && !showResult,
                 'correct': showResult && currentQuestion.answer === true,
-                'wrong': showResult && selectedJudge === true && currentQuestion.answer !== true
+                'wrong': showResult && selectedOption === 0 && currentQuestion.answer === false
               }"
-              @click="selectJudge(true)"
+              @click="selectOption(0)"
             >
               <van-icon name="success" size="28" />
               <span>正确</span>
@@ -130,11 +119,11 @@
             <div
               class="judge-option"
               :class="{
-                'selected': selectedJudge === false && !showResult,
+                'selected': selectedOption === 1 && !showResult,
                 'correct': showResult && currentQuestion.answer === false,
-                'wrong': showResult && selectedJudge === false && currentQuestion.answer !== false
+                'wrong': showResult && selectedOption === 1 && currentQuestion.answer === true
               }"
-              @click="selectJudge(false)"
+              @click="selectOption(1)"
             >
               <van-icon name="cross" size="28" />
               <span>错误</span>
@@ -145,11 +134,15 @@
 
       <!-- 结果反馈 -->
       <div v-if="showResult" class="result-section">
-        <div class="result-icon" :class="isCorrect ? 'correct' : 'wrong'" ref="resultIconEl">
-          <van-icon :name="isCorrect ? 'success' : 'cross'" size="48" />
-        </div>
-        <div class="result-text">
-          {{ isCorrect ? '回答正确!' : '回答错误' }}
+        <!-- 结果图标 -->
+        <div class="result-icon-container">
+          <div class="result-icon" :class="{ correct: isCorrect, wrong: !isCorrect }" ref="resultIconEl">
+            <span v-if="isCorrect">✅</span>
+            <span v-else>❌</span>
+          </div>
+          <div class="result-text" :class="{ correct: isCorrect, wrong: !isCorrect }">
+            {{ isCorrect ? '回答正确！' : '回答错误' }}
+          </div>
         </div>
         <div v-if="!isCorrect" class="correct-answer">
           正确答案: {{ getCorrectAnswerText() }}
@@ -177,7 +170,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useGameStore } from '../stores'
 import { gsap } from 'gsap'
-import { loadAllQuestions, filterQuestions, typeNames, difficultyNames, chapterNames } from '../utils/questionLoader'
+import { loadAllQuestions, filterQuestions, typeNames, difficultyNames, chapterNames, calculateStars, filterUnlockedQuestions } from '../utils/questionLoader'
 import { playCorrect, playWrong, playCombo, playClick } from '../utils/audio'
 
 const router = useRouter()
@@ -189,8 +182,6 @@ const loading = ref(true)
 const questions = ref([])
 const currentIndex = ref(0)
 const selectedOption = ref(null)
-const selectedJudge = ref(null)
-const fillAnswer = ref('')
 const showResult = ref(false)
 const isCorrect = ref(false)
 const combo = ref(0)
@@ -203,6 +194,10 @@ const scoreGain = ref(0)
 const showComboMilestone = ref(false)
 const milestoneText = ref('')
 const milestoneEmoji = ref('')
+const timeLimit = ref(0) // 限时秒数
+const timeRemaining = ref(0) // 剩余秒数
+const timerInterval = ref(null) // 计时器
+const isTimeUp = ref(false) // 时间到
 
 // 连击等级配置
 const comboLevels = [
@@ -214,14 +209,19 @@ const comboLevels = [
 
 // 游戏标题
 const gameTitle = computed(() => {
-  const chapter = route.query.chapter
-  if (chapter && chapterNames[chapter]) {
-    return chapterNames[chapter]
+  if (route.query.mode === 'speed') {
+    return `⏱️ 限时挑战 ${route.query.levelId} · ${timeRemaining.value}s`
   }
-  const mode = route.query.mode
-  if (mode === 'wrong') return '错题重练'
-  if (mode === 'random') return '随机挑战'
-  return '答题挑战'
+  if (route.query.mode === 'level') {
+    return `关卡 ${route.query.levelId} · ${currentIndex.value + 1}/${questions.value.length}`
+  }
+  if (route.query.mode === 'daily') {
+    return `每日挑战 · ${currentIndex.value + 1}/${questions.value.length}`
+  }
+  if (route.query.mode === 'wrong') {
+    return `错题重练 · ${currentIndex.value + 1}/${questions.value.length}`
+  }
+  return `答题 · ${currentIndex.value + 1}/${questions.value.length}`
 })
 
 // 当前题目
@@ -279,25 +279,11 @@ const comboEmoji = computed(() => {
   return '✨'
 })
 
-// 选择选项（选择题）
+// 选择选项
 const selectOption = (index) => {
   if (showResult.value) return
   playClick() // 播放点击音效
   selectedOption.value = index
-  checkAnswer()
-}
-
-// 选择判断（判断题）
-const selectJudge = (value) => {
-  if (showResult.value) return
-  playClick() // 播放点击音效
-  selectedJudge.value = value
-  checkAnswer()
-}
-
-// 提交填空答案
-const submitFillAnswer = () => {
-  if (!fillAnswer.value.trim() || showResult.value) return
   checkAnswer()
 }
 
@@ -306,38 +292,16 @@ const checkAnswer = async () => {
   const question = currentQuestion.value
   let userAns = null
 
-  if (question.type === 'choice') {
+  if (question.type === 'judge') {
+    // 判断题：answer 是布尔值 true/false
+    // selectedOption: 0 = 正确, 1 = 错误
+    isCorrect.value = (selectedOption.value === 0 && question.answer === true) ||
+                       (selectedOption.value === 1 && question.answer === false)
+    userAns = selectedOption.value === 0 ? true : false
+  } else {
+    // 选择题：answer 是索引数字
     isCorrect.value = selectedOption.value === question.answer
     userAns = selectedOption.value
-  } else if (question.type === 'fill') {
-    const userAnswer = fillAnswer.value.trim()
-    // 填空题判断：用户答案需要包含所有正确答案中的关键词
-    // 策略：用户答案应该包含至少一个正确答案的所有关键词
-    // 或者用户答案中的每个部分都能在正确答案中找到匹配
-    
-    const userParts = userAnswer.split(/[，,、\s]+/).filter(p => p.length > 0)
-    
-    // 检查是否匹配任何一个正确答案
-    isCorrect.value = question.answer.some(correctAns => {
-      const correctParts = correctAns.split(/[，,、\s]+/).filter(p => p.length > 0)
-      
-      // 如果正确答案有多个部分，用户答案需要包含所有部分
-      if (correctParts.length > 1) {
-        return correctParts.every(part => 
-          userParts.some(userPart => userPart.includes(part) || part.includes(userPart))
-        )
-      }
-      
-      // 单一部分：用户答案包含正确答案，或正确答案包含用户答案
-      return userParts.some(userPart => 
-        userPart.includes(correctAns) || correctAns.includes(userPart)
-      )
-    })
-    
-    userAns = fillAnswer.value.trim()
-  } else if (question.type === 'judge') {
-    isCorrect.value = selectedJudge.value === question.answer
-    userAns = selectedJudge.value
   }
 
   showResult.value = true
@@ -412,22 +376,41 @@ const checkAnswer = async () => {
       )
     }
 
-    // 正确图标动画
+    // 正确动画 - 缩放弹出
+    await nextTick()
     if (resultIconEl.value) {
       gsap.fromTo(resultIconEl.value,
-        { scale: 0, rotation: -180 },
-        { scale: 1, rotation: 0, duration: 0.5, ease: 'back.out(1.7)' }
+        { scale: 0, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(2)' }
       )
+      // 添加光晕效果
+      gsap.to(resultIconEl.value, {
+        boxShadow: '0 0 30px rgba(46, 204, 113, 0.6)',
+        duration: 0.3,
+        yoyo: true,
+        repeat: 1
+      })
     }
   } else {
     combo.value = 0
     playWrong() // 播放错误音效
-    gsap.from('.result-icon.wrong', {
-      x: -10,
-      duration: 0.1,
-      repeat: 3,
-      yoyo: true
-    })
+
+    // 错误动画 - 抖动 + 缩放
+    await nextTick()
+    if (resultIconEl.value) {
+      gsap.fromTo(resultIconEl.value,
+        { scale: 0, opacity: 0, x: 0 },
+        { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.5)' }
+      )
+      // 抖动效果
+      gsap.to(resultIconEl.value, {
+        x: -8,
+        duration: 0.08,
+        repeat: 5,
+        yoyo: true,
+        ease: 'power1.inOut'
+      })
+    }
   }
 }
 
@@ -447,13 +430,20 @@ const getCorrectAnswerText = () => {
 // 下一题
 const nextQuestion = () => {
   if (isLastQuestion.value) {
-    router.push('/result')
+    // 关卡模式：保存进度并计算星星
+    if (route.query.mode === 'level' && route.query.levelId) {
+      const total = questions.value.length
+      const accuracy = total > 0 ? store.correctCount / total : 0
+      const stars = calculateStars(store.correctCount, total)
+      
+      store.completeLevel(route.query.levelId, stars, store.score)
+    }
+    // 传递当前模式参数到结果页
+    router.push({ path: '/result', query: { ...route.query } })
   } else {
     currentIndex.value++
     store.currentQuestionIndex++
     selectedOption.value = null
-    selectedJudge.value = null
-    fillAnswer.value = ''
     showResult.value = false
     isCorrect.value = false
   }
@@ -461,6 +451,11 @@ const nextQuestion = () => {
 
 // 返回首页
 const goBack = () => {
+  if (timerInterval.value) clearInterval(timerInterval.value)
+  // 关卡模式：保存当前进度
+  if (route.query.mode === 'level' && route.query.levelId) {
+    store.saveLevelProgress()
+  }
   store.resetGame()
   router.push('/')
 }
@@ -473,6 +468,7 @@ onMounted(async () => {
   const type = route.query.type || ''
   const count = route.query.count ? parseInt(route.query.count) : 10
   const isAdaptive = route.query.adaptive === '1'
+  const unlockedOnly = route.query.unlockedOnly === '1'
 
   try {
     let allQuestions = []
@@ -490,6 +486,11 @@ onMounted(async () => {
         router.push('/')
         return
       }
+    } else if (mode === 'level') {
+      // 关卡模式：题目已在 store.startLevel 中设置
+      questions.value = store.questions
+      loading.value = false
+      return
     } else {
       // 从JSON加载题库
       const loaded = await loadAllQuestions()
@@ -498,13 +499,19 @@ onMounted(async () => {
         return
       }
 
+      // 如果是只使用已解锁题目，先过滤
+      let baseQuestions = loaded
+      if (unlockedOnly) {
+        baseQuestions = filterUnlockedQuestions(loaded, store.unlockedLevels)
+      }
+
       // 自适应模式下，使用当前store中的难度
       let targetDifficulty = difficulty
       if (isAdaptive) {
         targetDifficulty = store.currentDifficulty
       }
 
-      allQuestions = filterQuestions(loaded, {
+      allQuestions = filterQuestions(baseQuestions, {
         chapter: chapter || undefined,
         difficulty: targetDifficulty || undefined,
         type: type || undefined,
@@ -516,6 +523,27 @@ onMounted(async () => {
     questions.value = allQuestions
     store.startGame(allQuestions, isAdaptive ? store.currentDifficulty : null)
     loading.value = false
+
+    // 限时模式启动计时器
+    if (route.query.mode === 'speed' && route.query.timeLimit) {
+      timeLimit.value = parseInt(route.query.timeLimit)
+      timeRemaining.value = timeLimit.value
+      timerInterval.value = setInterval(() => {
+        timeRemaining.value--
+        if (timeRemaining.value <= 0) {
+          clearInterval(timerInterval.value)
+          isTimeUp.value = true
+          // 时间到，自动跳转结果
+          if (route.query.levelId) {
+            const lid = route.query.levelId
+            const total = questions.value.length
+            const stars = calculateStars(store.correctCount, total)
+            store.completeLevel(lid.replace('-speed', ''), stars, store.score)
+          }
+          router.push({ path: '/result', query: { ...route.query } })
+        }
+      }, 1000)
+    }
   } catch (error) {
     console.error('初始化游戏失败:', error)
     alert('加载题库失败，请刷新重试')
@@ -962,6 +990,14 @@ onMounted(async () => {
   text-align: center;
 }
 
+.result-icon-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
 .result-icon {
   width: 80px;
   height: 80px;
@@ -969,23 +1005,46 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16px;
+  font-size: 40px;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
 .result-icon.correct {
-  background: #2ecc71;
-  color: white;
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  animation: correctPulse 0.6s ease;
 }
 
 .result-icon.wrong {
-  background: #e74c3c;
-  color: white;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  animation: wrongShake 0.5s ease;
+}
+
+@keyframes correctPulse {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes wrongShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-10px); }
+  40% { transform: translateX(10px); }
+  60% { transform: translateX(-10px); }
+  80% { transform: translateX(10px); }
 }
 
 .result-text {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: bold;
-  margin-bottom: 12px;
+}
+
+.result-text.correct {
+  color: #27ae60;
+}
+
+.result-text.wrong {
+  color: #e74c3c;
 }
 
 .correct-answer {
@@ -1014,5 +1073,55 @@ onMounted(async () => {
   color: #666;
   line-height: 1.6;
   font-size: 15px;
+}
+
+/* 限时倒计时 */
+.timer-section {
+  padding: 8px 16px;
+  background: white;
+}
+
+.timer-bar {
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.timer-fill {
+  height: 100%;
+  background: #667eea;
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
+.timer-bar.warning .timer-fill {
+  background: #f39c12;
+}
+
+.timer-bar.danger .timer-fill {
+  background: #e74c3c;
+  animation: pulse-timer 0.5s infinite;
+}
+
+@keyframes pulse-timer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.timer-text {
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+.timer-text.warning {
+  color: #f39c12;
+}
+
+.timer-text.danger {
+  color: #e74c3c;
 }
 </style>
