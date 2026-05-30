@@ -1,10 +1,11 @@
 // Service Worker for 时空探险家 PWA
-const CACHE_NAME = 'space-time-explorer-v1'
+const CACHE_NAME = 'space-time-explorer-v2'
+const BASE = '/space1'
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/data/history-grade7-complete.json'
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/data/history-grade7-complete.json'
 ]
 
 // 安装时缓存静态资源
@@ -55,9 +56,9 @@ self.addEventListener('fetch', (event) => {
         }
         return fetchResponse
       }).catch(() => {
-        // 网络失败时返回离线页面（如果有的话）
+        // 网络失败时返回离线页面
         if (event.request.mode === 'navigate') {
-          return caches.match('/index.html')
+          return caches.match(BASE + '/index.html')
         }
       })
     })
