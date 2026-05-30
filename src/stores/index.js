@@ -285,6 +285,76 @@ export const useGameStore = defineStore('game', {
           currentIndex: this.currentQuestionIndex
         })
       }
+    },
+
+    // 从云端合并数据
+    mergeFromCloud(cloudData) {
+      if (!cloudData) return
+
+      const cloudTime = cloudData._cloudUpdatedAt || 0
+      // 获取本地数据的最后更新时间（使用 localStorage 的时间戳）
+      let localTime = Date.now()
+      try {
+        const saved = localStorage.getItem('space-time-explorer')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          localTime = parsed._updatedAt || Date.now()
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // 如果云端数据比本地新，使用云端数据
+      if (cloudTime > localTime) {
+        if (cloudData.user) {
+          this.user = { ...this.user, ...cloudData.user }
+        }
+        if (Array.isArray(cloudData.wrongQuestions)) {
+          this.wrongQuestions = cloudData.wrongQuestions
+        }
+        if (Array.isArray(cloudData.achievements)) {
+          this.achievements = cloudData.achievements
+        }
+        if (typeof cloudData.maxCombo === 'number') {
+          this.maxCombo = cloudData.maxCombo
+        }
+        if (typeof cloudData.streakDays === 'number') {
+          this.streakDays = cloudData.streakDays
+        }
+        if (cloudData.lastCheckInDate) {
+          this.lastCheckInDate = cloudData.lastCheckInDate
+        }
+        if (Array.isArray(cloudData.checkInDates)) {
+          this.checkInDates = cloudData.checkInDates
+        }
+        if (Array.isArray(cloudData.unlockedLevels)) {
+          this.unlockedLevels = cloudData.unlockedLevels
+        }
+        if (cloudData.levelProgress) {
+          this.levelProgress = { ...this.levelProgress, ...cloudData.levelProgress }
+        }
+        if (Array.isArray(cloudData.answerHistory)) {
+          this.answerHistory = cloudData.answerHistory
+        }
+        if (cloudData.questionStats) {
+          this.questionStats = { ...this.questionStats, ...cloudData.questionStats }
+        }
+        if (Array.isArray(cloudData.completedChapters)) {
+          this.completedChapters = cloudData.completedChapters
+        }
+        if (typeof cloudData.perfectRounds === 'number') {
+          this.perfectRounds = cloudData.perfectRounds
+        }
+        if (typeof cloudData.wrongPracticeCorrect === 'number') {
+          this.wrongPracticeCorrect = cloudData.wrongPracticeCorrect
+        }
+        if (typeof cloudData.perfectAccuracyRounds === 'number') {
+          this.perfectAccuracyRounds = cloudData.perfectAccuracyRounds
+        }
+        if (typeof cloudData.fastRounds === 'number') {
+          this.fastRounds = cloudData.fastRounds
+        }
+      }
     }
   },
 

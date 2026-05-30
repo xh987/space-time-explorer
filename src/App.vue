@@ -7,7 +7,26 @@
 </template>
 
 <script setup>
-// App根组件
+import { onMounted } from 'vue'
+import { initGuestMode, loadGameData } from './utils/cloudSync'
+import { useGameStore } from './stores'
+
+const store = useGameStore()
+
+onMounted(async () => {
+  try {
+    // 初始化游客模式
+    initGuestMode()
+    // 如果已登录，加载云端数据
+    const cloudData = await loadGameData()
+    if (cloudData) {
+      // 合并云端数据到本地store
+      store.mergeFromCloud(cloudData)
+    }
+  } catch (e) {
+    console.log('Cloud init failed:', e)
+  }
+})
 </script>
 
 <style>

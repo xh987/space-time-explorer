@@ -15,6 +15,18 @@
     />
 
     <div class="result-content">
+      <!-- 注册提示 -->
+      <div v-if="showRegisterHint" class="register-hint">
+        <div class="hint-content">
+          <span class="hint-icon">&#x1F4BE;</span>
+          <span>注册账户保存学习进度，换设备也不丢失</span>
+        </div>
+        <van-button size="small" round type="primary" @click="showAuthDialog = true">
+          立即注册
+        </van-button>
+        <van-icon name="cross" class="hint-close" @click="showRegisterHint = false" />
+      </div>
+
       <!-- 得分卡片 -->
       <div class="score-card">
         <div class="score-title">本次得分</div>
@@ -175,6 +187,9 @@
         </van-button>
       </div>
     </div>
+
+    <!-- 登录/注册弹窗 -->
+    <AuthDialog v-model="showAuthDialog" />
   </div>
 </template>
 
@@ -186,6 +201,8 @@ import { typeNames } from '../utils/questionLoader'
 import { checkAchievements, calculateStats, rarityConfig, achievements } from '../utils/achievements'
 import { playAchievement } from '../utils/audio'
 import { getKnowledgeCard } from '../utils/knowledgeCards'
+import { isLoggedIn } from '../utils/cloudSync'
+import AuthDialog from '../components/AuthDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -193,6 +210,10 @@ const store = useGameStore()
 
 // 是否展开回顾
 const showReview = ref(true)
+
+// 注册提示
+const showRegisterHint = ref(false)
+const showAuthDialog = ref(false)
 
 // 新解锁的成就
 const newAchievements = ref([])
@@ -299,6 +320,9 @@ onMounted(() => {
 
   // 检查成就
   checkNewAchievements()
+
+  // 检查是否需要显示注册提示（匿名用户且未提示过）
+  checkRegisterHint()
 
   // 三星通关或高分触发庆祝
   if (route.query.mode === 'level') {
@@ -497,6 +521,22 @@ const reviewWrong = () => {
   router.push({ path: '/game', query: { mode: 'wrong' } })
 }
 
+// 检查注册提示
+const checkRegisterHint = () => {
+  try {
+    const hinted = localStorage.getItem('register_hint_shown')
+    if (hinted) return // 已提示过，不再显示
+
+    const loggedIn = isLoggedIn()
+    if (!loggedIn) {
+      showRegisterHint.value = true
+      localStorage.setItem('register_hint_shown', 'true')
+    }
+  } catch (e) {
+    // 静默处理
+  }
+}
+
 // 返回首页
 const goHome = () => {
   store.resetGame()
@@ -565,6 +605,40 @@ const goHome = () => {
 
 .result-content {
   padding: 20px;
+}
+
+/* 注册提示 */
+.register-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #e8f4fd 0%, #f0e6ff 100%);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.hint-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.hint-icon {
+  font-size: 20px;
+}
+
+.hint-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
 }
 
 .score-card {

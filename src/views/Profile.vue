@@ -8,6 +8,26 @@
       fixed
     />
 
+    <!-- 用户账户卡片 -->
+    <div class="account-card" @click="showAuthDialog = true">
+      <div v-if="!isCloudLoggedIn" class="account-info">
+        <div class="account-avatar">&#x1F464;</div>
+        <div class="account-text">
+          <div class="account-title">未登录</div>
+          <div class="account-desc">登录以保存和同步学习进度</div>
+        </div>
+        <van-icon name="arrow" />
+      </div>
+      <div v-else class="account-info">
+        <div class="account-avatar logged-in">&#x1F464;</div>
+        <div class="account-text">
+          <div class="account-title">{{ cloudUsername }}</div>
+          <div class="account-desc">数据已同步到云端 &#x2705;</div>
+        </div>
+        <van-icon name="arrow" />
+      </div>
+    </div>
+
     <!-- 用户信息卡片 -->
     <div class="user-card">
       <div class="avatar-section">
@@ -159,6 +179,9 @@
         </div>
       </div>
     </van-popup>
+
+    <!-- 登录/注册弹窗 -->
+    <AuthDialog v-model="showAuthDialog" @loginSuccess="onLoginSuccess" @logoutSuccess="onLogoutSuccess" />
   </div>
 </template>
 
@@ -168,10 +191,15 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores'
 import { showDialog, showConfirmDialog } from 'vant'
 import { typeNames } from '../utils/questionLoader'
+import { isLoggedIn, getCurrentUser } from '../utils/cloudSync'
+import AuthDialog from '../components/AuthDialog.vue'
 
 const router = useRouter()
 const store = useGameStore()
 const showWrongList = ref(false)
+const showAuthDialog = ref(false)
+const isCloudLoggedIn = ref(false)
+const cloudUsername = ref('')
 
 // 答题设置
 const questionCount = ref(10)
@@ -185,7 +213,34 @@ onMounted(() => {
   difficulty.value = store.difficulty || 0
   questionType.value = store.questionType || ''
   useAdaptive.value = store.useAdaptive || false
+  checkCloudLoginState()
 })
+
+// 检查云端登录状态
+const checkCloudLoginState = () => {
+  try {
+    const loggedIn = isLoggedIn()
+    isCloudLoggedIn.value = loggedIn
+    if (loggedIn) {
+      const user = getCurrentUser()
+      cloudUsername.value = user ? user.username : ''
+    }
+  } catch (e) {
+    isCloudLoggedIn.value = false
+  }
+}
+
+// 登录成功回调
+const onLoginSuccess = (username) => {
+  isCloudLoggedIn.value = true
+  cloudUsername.value = username
+}
+
+// 退出登录回调
+const onLogoutSuccess = () => {
+  isCloudLoggedIn.value = false
+  cloudUsername.value = ''
+}
 
 // 保存设置
 const saveSettings = () => {
@@ -268,6 +323,57 @@ const startWrongPractice = () => {
   padding: 32px 20px;
   text-align: center;
   color: white;
+}
+
+/* 账户卡片 */
+.account-card {
+  background: white;
+  margin: 16px;
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.account-card:active {
+  opacity: 0.9;
+}
+
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.account-avatar.logged-in {
+  background: #e8f5e9;
+}
+
+.account-text {
+  flex: 1;
+}
+
+.account-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.account-desc {
+  font-size: 13px;
+  color: #999;
 }
 
 .avatar-section {
