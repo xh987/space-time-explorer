@@ -315,7 +315,7 @@ const startWrongPractice = () => {
 .profile {
   min-height: 100vh;
   background: #f5f5f5;
-  padding-top: 46px;
+  padding-top: 66px;
 }
 
 .user-card {
@@ -329,6 +329,7 @@ const startWrongPractice = () => {
 .account-card {
   background: white;
   margin: 16px;
+  margin-top: 20px;
   border-radius: 16px;
   padding: 16px 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
