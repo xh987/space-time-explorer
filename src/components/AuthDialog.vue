@@ -67,7 +67,7 @@
 <script setup>
 import { ref, watch, defineProps, defineEmits } from 'vue'
 import { showToast, showLoadingToast, closeToast } from 'vant'
-import { register, login, logout, getCurrentUser, isLoggedIn as checkIsLoggedIn, migrateGuestData } from '../utils/cloudSync'
+import { register, login, logout, getCurrentUser, isLoggedIn as checkIsLoggedIn, isGuest, migrateGuestData } from '../utils/cloudSync'
 import { useGameStore } from '../stores'
 
 const props = defineProps({
@@ -104,6 +104,13 @@ watch(visible, (val) => {
 
 // 检查登录状态
 const checkLoginState = () => {
+  // 先检查是否是游客
+  if (isGuest()) {
+    isLoggedIn.value = false
+    currentUser.value = ''
+    return
+  }
+  // 正式用户才算已登录
   const loggedIn = checkIsLoggedIn()
   isLoggedIn.value = loggedIn
   if (loggedIn) {

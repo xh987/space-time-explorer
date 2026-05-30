@@ -22,11 +22,19 @@ export function getCurrentUser() {
 }
 
 /**
- * 判断是否已登录
+ * 判断是否已登录（正式用户，非游客）
  */
 export function isLoggedIn() {
   const user = getCurrentUser()
-  return user && user.username
+  return user && user.username && !user.isGuest
+}
+
+/**
+ * 判断是否是游客状态
+ */
+export function isGuest() {
+  const user = getCurrentUser()
+  return !user || user.isGuest
 }
 
 /**
