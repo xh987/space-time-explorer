@@ -2,6 +2,8 @@
  * 成就系统定义
  */
 
+import { getUnlockProgress } from './timelineData'
+
 // 成就徽章列表
 export const achievements = [
   {
@@ -311,7 +313,6 @@ export function calculateStats(store) {
   const perfectRounds = store.perfectRounds || 0
 
   // 计算时间轴解锁数量
-  const { getUnlockProgress } = require('./timelineData')
   const timelineProgress = getUnlockProgress(store.unlockedLevels || [])
 
   return {
