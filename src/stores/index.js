@@ -43,7 +43,12 @@ export const useGameStore = defineStore('game', {
     // 答题历史记录（最近500题）
     answerHistory: [],
     // 题目统计 { questionId: { count: 0, correct: 0, lastAnswered: timestamp } }
-    questionStats: {}
+    questionStats: {},
+    // 答题设置
+    questionCount: 10,
+    difficulty: 0,
+    questionType: '',
+    useAdaptive: false
   }),
 
   getters: {
@@ -101,13 +106,43 @@ export const useGameStore = defineStore('game', {
       } else {
         this.wrongCount++
         this.combo = 0
-        // 加入错题本
-        if (question && !this.wrongQuestions.find(q => q.id === question.id)) {
-          this.wrongQuestions.push({
-            ...question,
-            wrongCount: 1,
-            lastWrongTime: Date.now()
-          })
+        // 错题处理（权重系统）
+        if (question) {
+          // 检查是否已在错题本中
+          const existingIndex = this.wrongQuestions.findIndex(q => q.id === question.id)
+
+          if (existingIndex >= 0) {
+            // 已在错题本中，增加错误次数（权重）
+            const wrongQ = this.wrongQuestions[existingIndex]
+            wrongQ.wrongCount = (wrongQ.wrongCount || 1) + 1
+            wrongQ.lastWrongTime = Date.now()
+            // 移到数组前面（优先练习）
+            this.wrongQuestions.splice(existingIndex, 1)
+            this.wrongQuestions.unshift(wrongQ)
+          } else {
+            // 新错题，加入错题本
+            this.wrongQuestions.unshift({
+              ...question,
+              wrongCount: 1,
+              firstWrongTime: Date.now(),
+              lastWrongTime: Date.now()
+            })
+          }
+        }
+      }
+
+      // 答对了，如果是错题本中的题，降低权重
+      if (isCorrect && question) {
+        const existingIndex = this.wrongQuestions.findIndex(q => q.id === question.id)
+        if (existingIndex >= 0) {
+          const wrongQ = this.wrongQuestions[existingIndex]
+          wrongQ.wrongCount = Math.max(0, (wrongQ.wrongCount || 1) - 1)
+          wrongQ.lastCorrectTime = Date.now()
+
+          // 如果权重降为0，从错题本移除
+          if (wrongQ.wrongCount === 0) {
+            this.wrongQuestions.splice(existingIndex, 1)
+          }
         }
       }
 
@@ -259,7 +294,14 @@ export const useGameStore = defineStore('game', {
       {
         key: 'space-time-explorer',
         storage: localStorage,
-        paths: ['user', 'wrongQuestions', 'achievements', 'maxCombo', 'perfectRounds', 'completedChapters', 'streakDays', 'lastCheckInDate', 'checkInDates', 'wrongPracticeCorrect', 'perfectAccuracyRounds', 'fastRounds', 'unlockedLevels', 'levelProgress', 'answerHistory', 'questionStats']
+        paths: [
+          'user', 'wrongQuestions', 'achievements', 'maxCombo',
+          'perfectRounds', 'completedChapters', 'streakDays',
+          'lastCheckInDate', 'checkInDates', 'wrongPracticeCorrect',
+          'perfectAccuracyRounds', 'fastRounds', 'unlockedLevels',
+          'levelProgress', 'answerHistory', 'questionStats',
+          'questionCount', 'difficulty', 'questionType', 'useAdaptive'
+        ]
       }
     ]
   }
@@ -294,7 +336,11 @@ function piniaPersistPlugin({ store }) {
       unlockedLevels: state.unlockedLevels,
       levelProgress: state.levelProgress,
       answerHistory: state.answerHistory,
-      questionStats: state.questionStats
+      questionStats: state.questionStats,
+      questionCount: state.questionCount,
+      difficulty: state.difficulty,
+      questionType: state.questionType,
+      useAdaptive: state.useAdaptive
     }
     localStorage.setItem('space-time-explorer', JSON.stringify(toSave))
   })

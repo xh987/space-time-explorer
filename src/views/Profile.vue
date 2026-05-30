@@ -42,6 +42,45 @@
       </div>
     </div>
 
+    <!-- 答题设置卡片 -->
+    <div class="settings-card">
+      <div class="card-title">⚙️ 答题设置</div>
+      <div class="settings-list">
+        <div class="setting-item">
+          <span class="setting-label">每轮题数</span>
+          <van-radio-group v-model="questionCount" direction="horizontal" @change="saveSettings">
+            <van-radio :name="5">5题</van-radio>
+            <van-radio :name="10">10题</van-radio>
+            <van-radio :name="15">15题</van-radio>
+            <van-radio :name="20">20题</van-radio>
+          </van-radio-group>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">题目难度</span>
+          <van-radio-group v-model="difficulty" direction="horizontal" @change="saveSettings">
+            <van-radio :name="0">全部</van-radio>
+            <van-radio :name="1">简单</van-radio>
+            <van-radio :name="2">中等</van-radio>
+            <van-radio :name="3">困难</van-radio>
+          </van-radio-group>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">题目类型</span>
+          <van-radio-group v-model="questionType" direction="horizontal" @change="saveSettings">
+            <van-radio name="">全部</van-radio>
+            <van-radio name="choice">选择</van-radio>
+            <van-radio name="judge">判断</van-radio>
+          </van-radio-group>
+        </div>
+        <div class="setting-item">
+          <van-checkbox v-model="useAdaptive" shape="square" @change="saveSettings">
+            启用自适应难度
+          </van-checkbox>
+          <span class="setting-hint">根据答题表现自动调整</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 功能菜单 -->
     <div class="menu-section">
       <van-cell-group>
@@ -124,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores'
 import { showDialog, showConfirmDialog } from 'vant'
@@ -133,6 +172,28 @@ import { typeNames } from '../utils/questionLoader'
 const router = useRouter()
 const store = useGameStore()
 const showWrongList = ref(false)
+
+// 答题设置
+const questionCount = ref(10)
+const difficulty = ref(0)
+const questionType = ref('')
+const useAdaptive = ref(false)
+
+// 加载设置
+onMounted(() => {
+  questionCount.value = store.questionCount || 10
+  difficulty.value = store.difficulty || 0
+  questionType.value = store.questionType || ''
+  useAdaptive.value = store.useAdaptive || false
+})
+
+// 保存设置
+const saveSettings = () => {
+  store.questionCount = questionCount.value
+  store.difficulty = difficulty.value
+  store.questionType = questionType.value
+  store.useAdaptive = useAdaptive.value
+}
 
 // 经验值百分比
 const expPercent = computed(() => {
@@ -278,6 +339,45 @@ const startWrongPractice = () => {
 
 .menu-section {
   padding: 0 16px;
+}
+
+.settings-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin: 16px;
+  margin-top: 0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.setting-hint {
+  font-size: 12px;
+  color: #999;
+  margin-left: 24px;
 }
 
 .menu-icon {

@@ -52,78 +52,42 @@
         </div>
       </div>
 
-      <!-- 每日挑战 + 智能推荐 并排 -->
-      <div class="feature-cards">
-        <!-- 每日挑战 -->
-        <div class="feature-card challenge-card" :class="{ completed: hasCheckedInToday }" @click="!hasCheckedInToday && startDailyChallenge()">
-          <div class="feature-icon">{{ hasCheckedInToday ? '✅' : '🔥' }}</div>
-          <div class="feature-title">{{ hasCheckedInToday ? '今日已打卡' : '每日挑战' }}</div>
-          <div class="feature-desc">连续 {{ store.streakDays }} 天</div>
-          <div class="feature-mini-dots">
-            <span v-for="n in 7" :key="n" class="mini-dot" :class="{ active: isDayCheckedIn(n) }"></span>
+      <!-- 六宫格功能区 -->
+      <div class="main-grid">
+        <div class="grid-row">
+          <div class="grid-item challenge-item" @click="handleDailyClick">
+            <div class="grid-icon">🔥</div>
+            <div class="grid-title">每日挑战</div>
+            <div class="grid-desc">连续{{ store.streakDays }}天</div>
+          </div>
+          <div class="grid-item recommend-item" @click="handleRecommendClick">
+            <div class="grid-icon">🤖</div>
+            <div class="grid-title">智能推荐</div>
+            <div class="grid-desc">{{ recommendations.weakChapters.length }}个薄弱章节</div>
           </div>
         </div>
-
-        <!-- 智能推荐 -->
-        <div class="feature-card recommend-card" @click="handleRecommendClick">
-          <div class="feature-icon">🤖</div>
-          <div class="feature-title">智能推荐</div>
-          <div class="feature-desc">{{ recommendations.advice || '根据你的表现推荐' }}</div>
-          <div class="feature-hint" v-if="recommendations.weakChapters.length > 0">
-            {{ recommendations.weakChapters.length }} 个薄弱章节
+        <div class="grid-row">
+          <div class="grid-item quick-item" @click="showQuickPopup = true">
+            <div class="grid-icon">⚡</div>
+            <div class="grid-title">快速开始</div>
+            <div class="grid-desc">已解锁{{ unlockedQuestionCount }}题</div>
+          </div>
+          <div class="grid-item chapter-item" @click="showChapterPopup = true">
+            <div class="grid-icon">📚</div>
+            <div class="grid-title">章节练习</div>
+            <div class="grid-desc">{{ unlockedChaptersCount }}/20章</div>
           </div>
         </div>
-      </div>
-
-      <!-- 快速开始 -->
-      <div class="quick-start">
-        <div class="section-title">快速开始 <span class="unlocked-hint">(已解锁 {{ unlockedQuestionCount }} 题)</span></div>
-        <div class="quick-buttons">
-          <div class="quick-btn" @click="startRandom(10)" :class="{ disabled: unlockedQuestionCount < 10 }">
-            <div class="quick-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
-              <van-icon name="shuffle" size="24" />
-            </div>
-            <span>随机10题</span>
+        <div class="grid-row">
+          <div class="grid-item card-item" @click="goToCardCollection">
+            <div class="grid-icon">📜</div>
+            <div class="grid-title">知识图鉴</div>
+            <div class="grid-desc">{{ collectedCardCount }}/{{ totalCardCount }}张</div>
           </div>
-          <div class="quick-btn" @click="startRandom(20)" :class="{ disabled: unlockedQuestionCount < 20 }">
-            <div class="quick-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
-              <van-icon name="fire-o" size="24" />
-            </div>
-            <span>随机20题</span>
-          </div>
-          <div class="quick-btn" @click="startWrongMode" :class="{ disabled: store.wrongQuestions.length === 0 }">
-            <div class="quick-icon" style="background: linear-gradient(135deg, #FF9F43, #F9CA24);">
-              <van-icon name="edit" size="24" />
-            </div>
-            <span>错题重练</span>
-            <van-badge v-if="store.wrongQuestions.length > 0" :content="store.wrongQuestions.length" class="wrong-badge" />
-          </div>
-        </div>
-        <div v-if="unlockedQuestionCount === 0" class="lock-hint">
-          🔒 请先在「时空探险」中解锁题库
-        </div>
-      </div>
-
-      <!-- 章节选择 -->
-      <div class="chapter-section">
-        <div class="section-title">按章节练习</div>
-        <div class="unit-list">
-          <div v-for="unit in unitGroups" :key="unit.name" class="unit-group">
-            <div class="unit-name">{{ unit.name }}</div>
-            <div class="chapter-grid">
-              <div
-                v-for="chapter in unit.chapters"
-                :key="chapter"
-                class="chapter-card"
-                :class="{ locked: !isChapterUnlocked(chapter) }"
-                @click="handleChapterClick(chapter)"
-              >
-                <div v-if="!isChapterUnlocked(chapter)" class="chapter-lock">🔒</div>
-                <div class="chapter-tag">{{ chapter }}</div>
-                <div class="chapter-name">{{ chapterNames[chapter] || chapter }}</div>
-                <div class="chapter-count">{{ getChapterCount(chapter) }}题</div>
-              </div>
-            </div>
+          <div class="grid-item timeline-item" @click="goToTimeline">
+            <div class="grid-icon">📅</div>
+            <div class="grid-title">历史时间轴</div>
+            <div class="grid-desc">{{ timelineProgress.unlocked }}/{{ timelineProgress.total }}个</div>
           </div>
         </div>
       </div>
@@ -138,44 +102,6 @@
         </div>
         <div class="adaptive-desc">
           根据你最近{{ Math.min(store.answers.length, 10) }}题的正确率自动推荐
-        </div>
-      </div>
-
-      <!-- 筛选设置 -->
-      <div class="filter-section">
-        <div class="section-title">答题设置</div>
-        <div class="filter-row">
-          <span class="filter-label">每轮题数</span>
-          <van-radio-group v-model="questionCount" direction="horizontal">
-            <van-radio :name="5">5题</van-radio>
-            <van-radio :name="10">10题</van-radio>
-            <van-radio :name="15">15题</van-radio>
-            <van-radio :name="20">20题</van-radio>
-          </van-radio-group>
-        </div>
-        <div class="filter-row">
-          <span class="filter-label">题目难度</span>
-          <van-radio-group v-model="difficulty" direction="horizontal">
-            <van-radio :name="0">全部</van-radio>
-            <van-radio :name="1">简单</van-radio>
-            <van-radio :name="2">中等</van-radio>
-            <van-radio :name="3">困难</van-radio>
-          </van-radio-group>
-        </div>
-        <div class="filter-row">
-          <span class="filter-label">题目类型</span>
-          <van-radio-group v-model="questionType" direction="horizontal">
-            <van-radio name="">全部</van-radio>
-            <van-radio name="choice">选择</van-radio>
-            <van-radio name="fill">填空</van-radio>
-            <van-radio name="judge">判断</van-radio>
-          </van-radio-group>
-        </div>
-        <div class="filter-row adaptive-row">
-          <van-checkbox v-model="useAdaptive" shape="square">
-            启用自适应难度
-          </van-checkbox>
-          <span class="adaptive-hint">根据答题表现自动调整</span>
         </div>
       </div>
 
@@ -251,6 +177,72 @@
       </div>
     </div>
 
+    <!-- 快速开始弹窗 -->
+    <van-popup v-model:show="showQuickPopup" round position="bottom" :style="{ maxHeight: '60%' }">
+      <div class="popup-header">
+        <div class="popup-title">⚡ 快速开始</div>
+        <div class="popup-subtitle">已解锁 {{ unlockedQuestionCount }} 题</div>
+      </div>
+      <div class="popup-content">
+        <div class="quick-options">
+          <div class="quick-option" @click="startRandom(10); showQuickPopup = false" :class="{ disabled: unlockedQuestionCount < 10 }">
+            <div class="option-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+              <van-icon name="shuffle" />
+            </div>
+            <div class="option-info">
+              <div class="option-title">随机10题</div>
+              <div class="option-desc">快速练习</div>
+            </div>
+          </div>
+          <div class="quick-option" @click="startRandom(20); showQuickPopup = false" :class="{ disabled: unlockedQuestionCount < 20 }">
+            <div class="option-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+              <van-icon name="fire-o" />
+            </div>
+            <div class="option-info">
+              <div class="option-title">随机20题</div>
+              <div class="option-desc">深度练习</div>
+            </div>
+          </div>
+          <div class="quick-option" @click="startWrongMode(); showQuickPopup = false" :class="{ disabled: store.wrongQuestions.length === 0 }">
+            <div class="option-icon" style="background: linear-gradient(135deg, #FF9F43, #F9CA24);">
+              <van-icon name="edit" />
+            </div>
+            <div class="option-info">
+              <div class="option-title">错题重练</div>
+              <div class="option-desc">{{ store.wrongQuestions.length }}道错题</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </van-popup>
+
+    <!-- 章节选择弹窗 -->
+    <van-popup v-model:show="showChapterPopup" round position="bottom" :style="{ maxHeight: '80%' }">
+      <div class="popup-header">
+        <div class="popup-title">📚 章节练习</div>
+        <div class="popup-subtitle">选择已解锁的章节</div>
+      </div>
+      <div class="popup-content chapter-popup-content">
+        <div v-for="unit in unitGroups" :key="unit.name" class="unit-group">
+          <div class="unit-name">{{ unit.name }}</div>
+          <div class="chapter-grid-popup">
+            <div
+              v-for="chapter in unit.chapters"
+              :key="chapter"
+              class="chapter-card-popup"
+              :class="{ locked: !isChapterUnlocked(chapter) }"
+              @click="isChapterUnlocked(chapter) && startChapter(chapter); showChapterPopup = false"
+            >
+              <div v-if="!isChapterUnlocked(chapter)" class="chapter-lock">🔒</div>
+              <div class="chapter-tag">{{ chapter }}</div>
+              <div class="chapter-name">{{ chapterNames[chapter] || chapter }}</div>
+              <div class="chapter-count">{{ getChapterCount(chapter) }}题</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </van-popup>
+
     <!-- 音效设置面板 -->
     <AudioSettings />
   </div>
@@ -265,15 +257,14 @@ import { knowledgeCards } from '../utils/knowledgeCards'
 import { getUnlockProgress } from '../utils/timelineData'
 import { generateRecommendations, recommendDifficulty } from '../utils/smartAnalysis'
 import AudioSettings from '../components/AudioSettings.vue'
+import { showToast } from 'vant'
 
 const router = useRouter()
 const store = useGameStore()
 
-// 答题设置
-const questionCount = ref(10)
-const difficulty = ref(0)
-const questionType = ref('')
-const useAdaptive = ref(true) // 默认启用自适应难度
+// 弹窗显示状态
+const showQuickPopup = ref(false)
+const showChapterPopup = ref(false)
 
 // 章节题目数量缓存
 const chapterCounts = ref({})
@@ -346,6 +337,11 @@ const unlockedChaptersList = computed(() => {
   return getUnlockedChapters(store.unlockedLevels)
 })
 
+// 已解锁章节数量
+const unlockedChaptersCount = computed(() => {
+  return getUnlockedChapters(store.unlockedLevels).length
+})
+
 // 已解锁题目数量
 const unlockedQuestionCount = computed(() => {
   if (!allQuestions.value || allQuestions.value.length === 0) return 0
@@ -355,6 +351,15 @@ const unlockedQuestionCount = computed(() => {
 // 判断章节是否解锁
 const isChapterUnlocked = (chapterTag) => {
   return unlockedChaptersList.value.includes(chapterTag)
+}
+
+// 处理每日挑战点击
+const handleDailyClick = () => {
+  if (hasCheckedInToday.value) {
+    showToast('今日已打卡')
+  } else {
+    startDailyChallenge()
+  }
 }
 
 // 处理章节点击
@@ -373,15 +378,15 @@ const getChapterCount = (chapter) => {
 
 // 构建查询参数
 function buildQuery(overrides = {}) {
-  const query = { count: questionCount.value }
+  const query = { count: store.questionCount || 10 }
   // 如果启用自适应难度且用户没有手动选择难度，使用推荐难度
-  if (useAdaptive.value && difficulty.value === 0 && store.answers.length >= 5) {
+  if (store.useAdaptive && store.difficulty === 0 && store.answers.length >= 5) {
     query.difficulty = recommendedDifficulty.value
     query.adaptive = 1 // 标记为自适应模式
-  } else if (difficulty.value > 0) {
-    query.difficulty = difficulty.value
+  } else if (store.difficulty > 0) {
+    query.difficulty = store.difficulty
   }
-  if (questionType.value) query.type = questionType.value
+  if (store.questionType) query.type = store.questionType
   return { ...query, ...overrides }
 }
 
@@ -609,15 +614,6 @@ onMounted(async () => {
   margin-top: 12px;
 }
 
-/* 智能推荐 */
-.smart-recommend {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 24px;
-  color: white;
-}
-
 /* 闯关模式入口 */
 .adventure-mode {
   margin-bottom: 24px;
@@ -708,276 +704,127 @@ onMounted(async () => {
   font-size: 24px;
 }
 
-.recommend-header {
+/* 四宫格布局 */
+.main-grid {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-.recommend-icon {
-  font-size: 36px;
+.grid-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
-.recommend-info {
-  flex: 1;
+.grid-item {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.recommend-title {
+.grid-item:active {
+  transform: scale(0.96);
+}
+
+.challenge-item {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  color: white;
+}
+
+.recommend-item {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.quick-item {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.chapter-item {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.card-item {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: white;
+}
+
+.timeline-item {
+  background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+  color: white;
+}
+
+.grid-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.grid-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 4px;
 }
 
-.recommend-advice {
-  font-size: 13px;
-  opacity: 0.95;
-  line-height: 1.4;
-}
-
-.recommend-actions {
-  margin-bottom: 16px;
-}
-
-.weak-chapters {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.weak-title {
-  font-size: 13px;
-  font-weight: bold;
-  margin-bottom: 8px;
+.grid-desc {
+  font-size: 12px;
   opacity: 0.9;
 }
 
-.weak-list {
+/* 弹窗样式 */
+.popup-header {
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.popup-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+.popup-subtitle {
+  font-size: 13px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.popup-content {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.quick-options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
 
-.weak-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.weak-item:active {
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.weak-name {
-  font-size: 13px;
-  flex: 1;
-  margin-right: 8px;
-}
-
-.weak-accuracy {
-  font-size: 14px;
-  font-weight: bold;
-  color: #f1c40f;
-}
-
-.weak-accuracy.low {
-  color: #e74c3c;
-}
-
-/* 每日挑战 */
-.daily-challenge {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 24px;
-  color: white;
-}
-
-.daily-challenge.completed {
-  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-}
-
-.challenge-header {
+.quick-option {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
-}
-
-.challenge-icon {
-  font-size: 40px;
-}
-
-.challenge-info {
-  flex: 1;
-}
-
-.challenge-title {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
-.challenge-desc {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-.challenge-progress {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.streak-days {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.day-dot {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  transition: all 0.3s ease;
-}
-
-.day-dot.active {
-  background: #f39c12;
-  box-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
-}
-
-.streak-reward {
-  font-size: 13px;
-  text-align: center;
-  opacity: 0.9;
-}
-
-/* 功能卡片并排布局 */
-.feature-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.feature-card {
-  border-radius: 12px;
   padding: 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.feature-card:active {
-  transform: scale(0.96);
-}
-
-.challenge-card {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
-  color: white;
-}
-
-.challenge-card.completed {
-  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-}
-
-.recommend-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.feature-icon {
-  font-size: 28px;
-  margin-bottom: 8px;
-}
-
-.feature-title {
-  font-size: 14px;
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
-.feature-desc {
-  font-size: 11px;
-  opacity: 0.9;
-  line-height: 1.4;
-  margin-bottom: 8px;
-  min-height: 28px;
-}
-
-.feature-mini-dots {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-}
-
-.mini-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.mini-dot.active {
-  background: #f39c12;
-  box-shadow: 0 0 4px rgba(243, 156, 18, 0.8);
-}
-
-.feature-hint {
-  font-size: 10px;
-  opacity: 0.8;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 2px 8px;
-  border-radius: 10px;
-  display: inline-block;
-}
-
-/* 快速开始 */
-.quick-start {
-  margin-bottom: 28px;
-}
-
-.quick-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.quick-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 8px;
   background: #f8f9fa;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
 }
 
-.quick-btn:active {
-  transform: scale(0.96);
-}
-
-.quick-btn.disabled {
+.quick-option.disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.quick-icon {
+.option-icon {
   width: 48px;
   height: 48px;
   border-radius: 12px;
@@ -985,80 +832,53 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   color: white;
+  font-size: 24px;
 }
 
-.quick-btn span {
-  font-size: 14px;
+.option-info {
+  flex: 1;
+}
+
+.option-title {
+  font-size: 16px;
   font-weight: bold;
   color: #333;
 }
 
-.wrong-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-}
-
-.card-count-badge {
-  font-size: 12px;
+.option-desc {
+  font-size: 13px;
   color: #999;
-  font-weight: normal;
+  margin-top: 2px;
 }
 
-/* 章节选择 */
-.chapter-section {
-  margin-bottom: 28px;
+.chapter-popup-content {
+  padding: 16px;
 }
 
-.unit-group {
-  margin-bottom: 20px;
-}
-
-.unit-name {
-  font-size: 14px;
-  color: #999;
-  margin-bottom: 12px;
-  padding-left: 4px;
-}
-
-.chapter-grid {
+.chapter-grid-popup {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  margin-bottom: 16px;
 }
 
-.chapter-card {
+.chapter-card-popup {
   padding: 12px;
   background: #f8f9fa;
   border-radius: 12px;
+  text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
   border: 2px solid transparent;
 }
 
-.chapter-card.locked {
-  opacity: 0.6;
-  background: #e9ecef;
+.chapter-card-popup.locked {
+  opacity: 0.5;
   cursor: not-allowed;
-}
-
-.chapter-card.locked:hover {
-  border-color: transparent;
-  background: #e9ecef;
 }
 
 .chapter-lock {
   font-size: 20px;
   margin-bottom: 4px;
-}
-
-.chapter-card:active {
-  transform: scale(0.96);
-}
-
-.chapter-card:not(.locked):hover {
-  border-color: #667eea;
-  background: #f0f3ff;
 }
 
 .chapter-tag {
@@ -1082,32 +902,6 @@ onMounted(async () => {
 .chapter-count {
   font-size: 12px;
   color: #999;
-}
-
-/* 筛选设置 */
-.filter-section {
-  margin-bottom: 28px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.filter-row:last-child {
-  margin-bottom: 0;
-}
-
-.filter-label {
-  font-size: 14px;
-  color: #666;
-  min-width: 70px;
-  flex-shrink: 0;
 }
 
 /* 自适应难度 */
@@ -1158,20 +952,15 @@ onMounted(async () => {
   color: #666;
 }
 
-.adaptive-row {
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px dashed #ddd;
-}
-
-.adaptive-hint {
-  font-size: 12px;
-  color: #999;
-}
-
 /* 功能按钮 */
 .action-buttons {
   margin-bottom: 24px;
+}
+
+.card-count-badge {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
 }
 
 /* 统计信息 */
