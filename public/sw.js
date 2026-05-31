@@ -1,5 +1,5 @@
 // Service Worker for 时空探险家 PWA
-const CACHE_NAME = 'space-time-explorer-v3'
+const CACHE_NAME = 'space-time-explorer-v4'
 const BASE = '/space1'
 const STATIC_ASSETS = [
   BASE + '/',
